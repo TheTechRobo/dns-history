@@ -76,5 +76,20 @@ async def read():
             """,
             sitedata=datums, datetime=datetime
     ), 300
+@app.route("/Read/<site>/<float:ts>")
+async def route(site, ts):
+    cursor = await r.db("dns").table("entries").filter(
+            {'site': site, "ts": ts}
+            ).run(await r.connect("localhost", 28015))
+    a = []
+    async for i in cursor:
+        a.append(i)
+    print(a)
+    if len(a) > 1:
+        return "Inappropriate number of responses for the same TS"
+    if len(a) == 0:
+        return "<IMG SRC='https://web.archive.org/web/20211128194924im_/https://preview.redd.it/1htemhh633r21.jpg?width=960&crop=smart&auto=webp&s=259c2baf582e29e467d5d49f9f461a7bcd081d6d' ALT='WeirdChamp'>"
+    return a[0]['data'].replace("\n","<br>")
+
 @app.route("/")
 async def slash(): return """<form action="/Clickclickclick" method="post"><input name="site" id="site" placeholder="example.com"><label for="site">Domain name</label></form><i>Don't use https?://, or a path</i><br><br><h2>Save DNS Now</h2><a href="/Save">Here</a>"""
