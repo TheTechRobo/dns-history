@@ -28,25 +28,31 @@ async def save():
                 f"dig {site} ANY @8.8.8.8"
             ], shell=True, capture_output=True
     )
+    sudo.tsTTR = time.time()
     sudo2 = run(
             [
                 f"dig www.{site} ANY @8.8.8.8"
             ], shell=True, capture_output=True
     )
-    l = {site: sudo, f"www.{site}": sudo2}
+    sudo2.tsTTR = time.time()
+    l = {f"www.{site}": sudo2, site: sudo}
     for site, i in l.items():
+        ts = i.tsTTR
         await r \
             .db("dns") \
             .table("entries") \
             .insert(
                     {
-                        "ts": time.time(),
+                        "ts": ts,
                         "data": i.stdout.decode(),
                         "site": site
                         }
                     ) \
             .run(conn)
-    return "SavePageNow SUCCESS!!", 201
+    return """
+    Successfully saved page info.
+    <br>You can view it <a href="/Read/{site}/{ts}">here</a>.
+    """.format(site=site, ts=ts), 201
 @app.route("/Clickclickclick", methods=["POST"])
 async def read():
     if request.form.get('site') is None: abort(400)
