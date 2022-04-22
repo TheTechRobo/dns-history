@@ -45,6 +45,7 @@ async def save():
                     {
                         "ts": ts,
                         "data": i.stdout.decode(),
+                        "error":i.stderr.decode(),
                         "site": site
                         }
                     ) \
@@ -95,6 +96,8 @@ async def route(site, ts):
         return "Inappropriate number of responses for the same TS"
     if len(a) == 0:
         return "<IMG SRC='https://web.archive.org/web/20211128194924im_/https://preview.redd.it/1htemhh633r21.jpg?width=960&crop=smart&auto=webp&s=259c2baf582e29e467d5d49f9f461a7bcd081d6d' ALT='WeirdChamp'>"
+    if a[0].get('error'):
+        a[0]['data'] += f"\n\nstderr:\n{a[0]['error']}"
     return a[0]['data'].replace("\n","<br>")
 
 @app.route("/")
