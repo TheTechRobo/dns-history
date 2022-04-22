@@ -65,7 +65,7 @@ async def read():
     async for i in cursor:
         datums.append(i)
     if not datums:
-        return "No such site in database", 404
+        return "No such site in database<br>\nHINT: If the domain name has special characters, try running it through <a href='https://www.punycoder.com/'>a punycode converter</a> and using that.", 404
     """
     if datums[0] is False:
         return "No such site in database", 410
