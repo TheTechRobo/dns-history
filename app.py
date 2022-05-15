@@ -23,7 +23,8 @@ async def save():
         if site is None: raise KeyError
     except KeyError:
         abort(400)
-    site = site.encode("idna")
+    site = site.encode("idna").decode()
+    print(f"dig {site} ANY @8.8.8.8")
     sudo = run(
             [
                 f"dig {site} ANY @8.8.8.8"
@@ -62,7 +63,7 @@ async def read():
     site = request.form['site']
     datums = []
     cursor = await r.db("dns").table("entries").get_all(
-            site.encode("idna"), index="site"
+            site.encode("idna").decode(), index="site"
             ).run(await r.connect("localhost", 28015))
     async for i in cursor:
         datums.append(i)
