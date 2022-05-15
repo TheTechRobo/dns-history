@@ -23,6 +23,7 @@ async def save():
         if site is None: raise KeyError
     except KeyError:
         abort(400)
+    site = site.encode("idna")
     sudo = run(
             [
                 f"dig {site} ANY @8.8.8.8"
@@ -60,13 +61,11 @@ async def read():
     if request.form.get('site') is None: abort(400)
     site = request.form['site']
     datums = []
-    cursor = await r.db("dns").table("entries").filter(
-            {'site': site}
+    cursor = await r.db("dns").table("entries").get_all(
+            site.encode("idna"), index="site"
             ).run(await r.connect("localhost", 28015))
     async for i in cursor:
         datums.append(i)
-    if not datums:
-        return "No such site in database<br>\nHINT: If the domain name has special characters, try running it through <a href='https://www.punycoder.com/'>a punycode converter</a> and using that.", 404
     """
     if datums[0] is False:
         return "No such site in database", 410
@@ -75,15 +74,15 @@ async def read():
     """
     return render_template_string(
             """
-            <h1>Snapshots for {{sitedata[0]['site']}}</h1>
+            <h1>{{sitedata|length}} snapshots for {{site}}</h1>
             {% for i in sitedata %}
             <a href="/Read/{{i['id']}}">{{datetime.fromtimestamp(i['ts'])}}</a>
             <BR>
             {% endfor %}
             <h4>You've reached the end</h4>
             """,
-            sitedata=datums, datetime=datetime
-    ), 300
+            sitedata=datums, datetime=datetime, site=site
+    ), 200
 @app.route("/Read/<site>/<float:ts>")
 async def old(site, ts):
     conn = await r.connect("localhost", 28015)
