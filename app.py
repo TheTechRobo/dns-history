@@ -24,7 +24,7 @@ async def save():
     except KeyError:
         abort(400)
     site = site.encode("idna").decode()
-    print(f"dig {site} ANY @8.8.8.8")
+    #print(f"dig {site} ANY @8.8.8.8")
     sudo = run(
             [
                 f"dig {site} ANY @8.8.8.8"
@@ -55,8 +55,8 @@ async def save():
         key = keys["generated_keys"][0]
     return """
     Successfully saved page info.
-    <br>You can view it <a href="/Read/{id}">here</a>.
-    """.format(site=site, id=key), 201
+    <br>You can view it <a href="/Read/{site}/{ts}">here</a>.
+    """.format(site=site, id=key, ts=ts), 201
 @app.route("/Clickclickclick", methods=["POST"])
 async def read():
     if request.form.get('site') is None: abort(400)
@@ -67,17 +67,11 @@ async def read():
             ).run(await r.connect("localhost", 28015))
     async for i in cursor:
         datums.append(i)
-    """
-    if datums[0] is False:
-        return "No such site in database", 410
-    if datums[0] is None:
-        return "No such site in database", 451
-    """
     return render_template_string(
             """
             <h1>{{sitedata|length}} snapshots for {{site}}</h1>
             {% for i in sitedata %}
-            <a href="/Read/{{i['id']}}">{{datetime.fromtimestamp(i['ts'])}}</a>
+            <a href="/Read/{{i['site']}}/{{i['ts']}}">{{datetime.fromtimestamp(i['ts'])}}</a>
             <BR>
             {% endfor %}
             <h4>You've reached the end</h4>
@@ -87,20 +81,20 @@ async def read():
 @app.route("/Read/<site>/<float:ts>")
 async def old(site, ts):
     conn = await r.connect("localhost", 28015)
-    cursor = await r.db("dns").table("entries").filter(
+    cursor = await r.db("dns").table("entries").get_all(site, index="site").filter(
             {'site': site, "ts": ts}
             ).run(conn)
     a = []
     async for i in cursor:
         a.append(i)
-    print(a)
+    #print(a)
     if len(a) > 1:
         print("\tSomething funny happened.", a, file=sys.stderr)
         return "Inappropriate number of responses for the same TS", 500
     if len(a) == 0:
         return "<IMG SRC='https://web.archive.org/web/20211128194924im_/https://preview.redd.it/1htemhh633r21.jpg?width=960&crop=smart&auto=webp&s=259c2baf582e29e467d5d49f9f461a7bcd081d6d' ALT='WeirdChamp'>", 404
     link = f"/Read/{a[0]['id']}"
-    return f"This endpoint is outdated and slow. Please proceed to <a href='{link}'>the new endpoint</a> and update any bookmarks or links.", 300
+    return await route(a[0]['id'])
 @app.route("/Read/<id>")
 async def route(id):
     conn = await r.connect("localhost", 28015)
