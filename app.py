@@ -55,12 +55,14 @@ async def read():
         try:
             site = request.form['site'].lower().strip()
             getByIds = request.form.get('ids')
+            json = request.form.get('json')
         except KeyError:
             abort(400)
     else:
         try:
            site = request.args['q'].lower().strip()
            getByIds = request.args.get('ids')
+           json = request.args.get('json')
         except KeyError:
             abort(400)
     sites = site.split(" ")
@@ -81,6 +83,8 @@ async def read():
                 tmp.append(i)
         await conn.close()
         datums[site] = tmp
+    if json:
+        return datums
     return render_template("searchresults.html",
             sitedatums=datums, datetime=datetime, sorted=sorted, checkSORTED=lambda s : s['ts']
     )
@@ -128,15 +132,15 @@ async def slash():
 @app.route("/api")
 async def api():
     endpoints = [
-            {"url": "/Clickclickclick", "title": "Searching for records (exact match)", "method": "GET", "p": "(query string)", "nb": "There is no JSON counterpart here; if you want to get the data, you will need to use HTML parsing.","params": {
-                    "q":"Domains to search for (space-separated)", "ids (optional; defaults to 0)": "Set to any non-zero value to search by primary key rather than by domain name. Used in Save DNS Now"
+            {"url": "/Clickclickclick", "title": "Searching for records (exact match)", "method": "GET", "p": "(query string)","params": {
+                "q":"Domains to search for (space-separated)", "ids (optional)": "Set to any value to search by primary key rather than by domain name. Used in Save DNS Now", "json": "Set this parameter to return JSON."
                 },
             }, {
-                "nb": "You can access full record data (including the date!) as JSON by tacking on .json to the URL.", "url": "/Read/<id>", "title": "Read record data (minus date) by primary key", "method": "GET", "p": "(URL)", "params": {
+                "nb": "You can access full record data (including the date!) as JSON by tacking on .json to the URL. Note however that this data is returned in the search results (/Clickclickclick) if JSON is requested. As such, if you are using the search results and following the links, just request JSON in your search results for one less request.", "url": "/Read/<id>", "title": "Read record data (minus date) by primary key", "method": "GET", "p": "(URL)", "params": {
                     "id": "The primary key of the document."
                 },
             }, {
-                "nb": "You can access full record data (including the date!) as JSON by tacking on .json to the URL.", "url": "/Read/<site>/<timestamp>", "title": "Read record data (minus date) by site and timestamp", "method": "GET", "p": "(URL)", "params": {
+                "nb": "You can access full record data (including the date!) as JSON by tacking on .json to the URL. Note however that this data is returned in the search results (/Clickclickclick) if JSON is requested. As such, if you are using the search results and following the links, just request JSON in your search results for one less request.", "url": "/Read/<site>/<timestamp>", "title": "Read record data (minus date) by site and timestamp", "method": "GET", "p": "(URL)", "params": {
                     "site": "The domain name",
                     "timestamp": "The timestamp (UNIX epoch) of the record"
                 },
