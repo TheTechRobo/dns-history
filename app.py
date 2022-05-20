@@ -11,12 +11,6 @@ app = Flask(__name__)
 async def save():
     if request.method == "GET":
         return """
-        <FORM ACTION="/Save" METHOD="POST">
-        <INPUT ID="site" NAME="site" PLACEHOLDER="Domain to save">
-        </FORM>
-        <h1>Save Domain Now</h1>
-        <h4>Will also grab www.{domain}</h4>
-        <p><i>Separate multiple domains with a space.</i></p>
         """
     conn = await r.connect("localhost", 28015)
     try:
@@ -55,10 +49,7 @@ async def save():
                     ) \
             .run(conn)
         keys.append(ret["generated_keys"][0])
-    return render_template_string("""
-    Successfully saved page info for {{siteLinks|length}} sites.
-    <br>You can view them <a href="/Clickclickclick?q={{" ".join(siteIds)}}&ids=1">here</a>
-    """, siteLinks=D, siteIds=keys, site=site, ts=ts), 201
+    return render_template("saved.html", siteLinks=D, siteIds=keys, site=site, ts=ts), 201
 @app.route("/Clickclickclick", methods=["GET", "POST"])
 async def read():
     if request.method == "POST":
@@ -91,35 +82,9 @@ async def read():
                 tmp.append(i)
         await conn.close()
         datums[site] = tmp
-    return render_template_string(
-            """
-            <!DOCTYPE html><html><title>Search results for {{site}}</title><body>
-            {% for site, sitedata in sitedatums.items() %}
-                <div id="{{site}}">
-                <h1>
-                {% if sitedata|length == 0 %}
-                    No snapshots
-                {%elif sitedata|length == 1%}
-                    Snapshot
-                {%else%}
-                    {{sitedata|length}} snapshots
-                {%endif%}
-                 for {{site}}
-                {% if "." not in site %}
-                    {% if sitedata|length != 0 %}
-                        ({{sitedata[0]["site"]}})
-                    {%endif%}
-                {% endif %}</h1>
-                {% for i in sitedata %}
-                    <a href="/Read/{{i['site']}}/{{i['ts']}}">{{datetime.fromtimestamp(i['ts'])}}</a>
-                    <BR>
-                {% endfor %}
-                <h4>You've reached the end</h4>
-                </div>
-            {%endfor%}</body>
-            """,
+    return render_template("searchresults.html",
             sitedatums=datums, datetime=datetime
-    ), 200
+    )
 @app.route("/Read/<site>/<float:ts>")
 async def redir(site, ts):
     return await old(site, ts)
@@ -127,17 +92,16 @@ async def redir(site, ts):
 async def old(site, ts, ext="html"):
     conn = await r.connect("localhost", 28015)
     cursor = await r.db("dns").table("entries").get_all(site, index="site").filter(
-            {'site': site, "ts": ts}
+            {"ts": ts}
             ).run(conn)
     a = []
     async for i in cursor:
         a.append(i)
-    #print(a)
     if len(a) > 1:
         print("\tSomething funny happened.", a, file=sys.stderr)
         return "Inappropriate number of responses for the same TS", 500
     if len(a) == 0:
-        return "<IMG SRC='https://web.archive.org/web/20211128194924im_/https://preview.redd.it/1htemhh633r21.jpg?width=960&crop=smart&auto=webp&s=259c2baf582e29e467d5d49f9f461a7bcd081d6d' ALT='WeirdChamp'>", 404
+        a[0] = {'id': None}
     link = f"/Read/{a[0]['id']}"
     return await route(a[0]['id'], ext)
 @app.route("/Read/<id>")
@@ -148,6 +112,8 @@ async def route(id, ext="html"):
     conn = await r.connect("localhost", 28015)
     data = await r.db("dns").table("entries").get(id).run(conn)
     if ext == "json":
+        if not data:
+            return data, 404
         return data
     if not data:
         return "Couldn't find that ID in the database.", 404
@@ -156,4 +122,37 @@ async def route(id, ext="html"):
     return data['data'].replace("\n","<br>"), 200
 
 @app.route("/")
-async def slash(): return """<form action="/Clickclickclick" method="get"><input name="q" id="q" placeholder="example.com"><label for="q">Domain name</label></form><i>Don't use https?://, or a path</i><br><br><h2>Save DNS Now</h2><a href="/Save">Here</a>"""
+async def slash():
+    return render_template("index.html")
+
+@app.route("/api")
+async def api():
+    endpoints = [
+            {"url": "/Clickclickclick", "title": "Searching for records (exact match)", "method": "GET", "p": "(query string)", "nb": "There is no JSON counterpart here; if you want to get the data, you will need to use HTML parsing.","params": {
+                    "q":"Domains to search for (space-separated)", "ids (optional; defaults to 0)": "Set to any non-zero value to search by primary key rather than by domain name. Used in Save DNS Now"
+                },
+            }, {
+                "url": "/Read/<id>", "title": "Read record data (minus date) by primary key", "method": "GET", "p": "(URL)", "params": {
+                    "id": "The primary key of the document."
+                },
+            }, {
+                "url": "/Read/<site>/<timestamp>", "title": "Read record data (minus date) by site and timestamp", "method": "GET", "p": "(URL)", "params": {
+                    "site": "The domain name",
+                    "timestamp": "The timestamp of the record"
+                },
+            }, {
+                "url": "/Read/<site>/<timestamp>.json", "title": "Read full record data as JSON by site and timestamp", "method": "GET", "p": "(URL)", "params": {
+                    "site": "The domain name",
+                    "timestamp": "The timestamp of the record"
+                },
+            }, {
+                "url": "/Read/<id>.json", "title": "Read full record data as JSON by primary key", "method":"GET", "p": "(URL", "params": {
+                    "id": "The primary key of the document"
+                },
+            }, {
+                "url": "/Save", "title": "Save DNS Now", "method": "POST", "p": "(request body)", "nb": "There is no JSON counterpart here; if you want to get the data, you will need to use HTML parsing.", "params": {
+                    "site": "The DNS domains to save, space-separated"
+                },
+            },
+        ]
+    return render_template("api.html", endpoints=endpoints)

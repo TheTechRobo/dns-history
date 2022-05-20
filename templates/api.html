@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>API Reference</title>
+  </head>
+  <body>
+    <h1>API reference</h1>
+    <p>Sorry, no examples yet. Coming soon! (In the meantime, just try the endpoints you need out. Breaking changes won't be introduced lightly - the old POST version of Clickclickclick is still there and works, even though it's probably never going to be used anymore!)</p>
+    {% for endpoint in endpoints %}
+      <div id="{{endpoint['url']}}">
+        <h2>{{ endpoint['title']}}</h2>
+        <h3>Endpoint: <code>{{endpoint['url']}}</code></h3>
+        <p>
+          <b>Method: </b>{{ endpoint['method'] }}<br>
+          <b>Parameters</b> {{endpoint['p']}}:
+          <dl style="margin-left: 40px;">
+            {% for pTitle, pDesc in endpoint['params'].items() %}
+              <dt>{{ pTitle }}<dd>{{ pDesc }}</dd></dt>
+            {%endfor%}
+          </dl>
+          {% if endpoint['nb'] is defined %}
+            <b>NB: </b> {{endpoint['nb']}}
+          {%endif%}
+        </p>
+      </div>
+    {% endfor %}
+  </body>
+</html>
+

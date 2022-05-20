@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Search results for {{site}}</title>
+  </head>
+  <body>
+    {% for site, sitedata in sitedatums.items() %}
+    <div id="{{site}}">
+      <h1>
+        {% if sitedata|length == 0 %}
+          No snapshots
+        {%elif sitedata|length == 1%}
+          Snapshot
+        {%else%}
+          {{sitedata|length}} snapshots
+        {%endif%}
+          for {{site}}
+        {% if "." not in site %}
+            {% if sitedata|length != 0 %}
+                ({{sitedata[0]["site"]}})
+            {%endif%}
+        {% endif %}</h1>
+        {% for i in sitedata %}
+            <a href="/Read/{{i['site']}}/{{i['ts']}}">{{datetime.fromtimestamp(i['ts'])}}</a>
+            <BR>
+        {% endfor %}
+        <h4>You've reached the end</h4>
+        </div>
+    {%endfor%}
+  </body>
+</html>
