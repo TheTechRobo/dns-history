@@ -82,7 +82,7 @@ async def read():
         await conn.close()
         datums[site] = tmp
     return render_template("searchresults.html",
-            sitedatums=datums, datetime=datetime
+            sitedatums=datums, datetime=datetime, sorted=sorted, checkSORTED=lambda s : s['ts']
     )
 @app.route("/Read/<site>/<float:ts>")
 async def redir(site, ts):

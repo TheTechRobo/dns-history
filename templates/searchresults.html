@@ -20,7 +20,7 @@
                 ({{sitedata[0]["site"]}})
             {%endif%}
         {% endif %}</h1>
-        {% for i in sitedata %}
+        {% for i in sorted(sitedata, key=checkSORTED, reverse=True) %}
             <a href="/Read/{{i['site']}}/{{i['ts']}}">{{datetime.fromtimestamp(i['ts'])}}</a>
             <BR>
         {% endfor %}
