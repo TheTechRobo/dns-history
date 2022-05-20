@@ -16,32 +16,33 @@ async def save():
         </FORM>
         <h1>Save Domain Now</h1>
         <h4>Will also grab www.{domain}</h4>
+        <p><i>Separate multiple domains with a space.</i></p>
         """
     conn = await r.connect("localhost", 28015)
     try:
-        site = request.form.get('site')
-        if site is None: raise KeyError
+        sites = request.form["site"].strip().split(" ")
     except KeyError:
         abort(400)
-    site = site.encode("idna").decode().lower()
-    #print(f"dig {site} ANY @8.8.8.8")
-    sudo = run(
-            [
-                f"dig {site} ANY @8.8.8.8"
-            ], shell=True, capture_output=True
-    )
-    sudo.tsTTR = time.time()
-    sudo2 = run(
-            [
-                f"dig www.{site} ANY @8.8.8.8"
-            ], shell=True, capture_output=True
-    )
-    sudo2.tsTTR = time.time()
-    lis = [sudo2, sudo]
-    l = {f"www.{site}": sudo2, site: sudo}
-    for site, i in l.items():
+    D = {}
+    for site in sites:
+        site = site.encode("idna").decode().lower()
+        D[site] = run(
+                [
+                    "dig", site, "ANY", "@8.8.8.8"
+                ], shell=False, capture_output=True
+        )
+        D[site].tsTTR = time.time()
+        D[f'www.{site}'] = run(
+                [
+                    "dig", f"www.{site}", "ANY", "@8.8.8.8"
+                ], shell=False, capture_output=True
+        )
+        D[f'www.{site}'].tsTTR = time.time()
+    #    l = {f"www.{site}": sudo2, site: sudo}
+    keys = []
+    for site, i in D.items():
         ts = i.tsTTR
-        keys = await r \
+        ret = await r \
             .db("dns") \
             .table("entries") \
             .insert(
@@ -53,48 +54,71 @@ async def save():
                         }
                     ) \
             .run(conn)
-        key = keys["generated_keys"][0]
+        keys.append(ret["generated_keys"][0])
     return render_template_string("""
-    {% if multiple is defined %}
-        Successfully saved page info for {{siteLinks|length}} sites.
-        <br>You can view them <a href="/Clickclickclick?q={{" ".join(siteIds)}}&ids=1">here</a>
-    {% else %}
-        Successfully saved page info.
-        <br>You can view it <a href="/Read/{{site}}/{{ts}}">here</a>.
-    {% endif %}
-    """, siteLinks=[], siteIds=[], site=site, id=key, ts=ts), 201
+    Successfully saved page info for {{siteLinks|length}} sites.
+    <br>You can view them <a href="/Clickclickclick?q={{" ".join(siteIds)}}&ids=1">here</a>
+    """, siteLinks=D, siteIds=keys, site=site, ts=ts), 201
 @app.route("/Clickclickclick", methods=["GET", "POST"])
 async def read():
     if request.method == "POST":
         try:
             site = request.form['site'].lower().strip()
+            getByIds = request.form.get('ids')
         except KeyError:
             abort(400)
     else:
         try:
            site = request.args['q'].lower().strip()
+           getByIds = request.args.get('ids')
         except KeyError:
             abort(400)
     sites = site.split(" ")
-    datums = []
-    cursor = await r.db("dns").table("entries").get_all(
-            site.encode("idna").decode(), index="site"
-            ).run(await r.connect("localhost", 28015))
-    async for i in cursor:
-        datums.append(i)
+    datums = {}
+    for site in sites:
+        tmp = []
+        conn = await r.connect("localhost", 28015)
+        if getByIds:
+            i = await r.db("dns").table("entries").get(site) \
+                    .run(conn)
+            if i:
+                tmp.append(i)
+        else:
+            cursor = await r.db("dns").table("entries").get_all(
+                    site.encode("idna").decode(), index="site"
+                    ).run(conn)
+            async for i in cursor:
+                tmp.append(i)
+        await conn.close()
+        datums[site] = tmp
     return render_template_string(
             """
             <!DOCTYPE html><html><title>Search results for {{site}}</title><body>
-            <div id="{{site}}">
-                <h1>{{sitedata|length}} snapshots for {{site}}</h1>
+            {% for site, sitedata in sitedatums.items() %}
+                <div id="{{site}}">
+                <h1>
+                {% if sitedata|length == 0 %}
+                    No snapshots
+                {%elif sitedata|length == 1%}
+                    Snapshot
+                {%else%}
+                    {{sitedata|length}} snapshots
+                {%endif%}
+                 for {{site}}
+                {% if "." not in site %}
+                    {% if sitedata|length != 0 %}
+                        ({{sitedata[0]["site"]}})
+                    {%endif%}
+                {% endif %}</h1>
                 {% for i in sitedata %}
                     <a href="/Read/{{i['site']}}/{{i['ts']}}">{{datetime.fromtimestamp(i['ts'])}}</a>
-                <BR>
+                    <BR>
                 {% endfor %}
                 <h4>You've reached the end</h4>
-            </div></body>
+                </div>
+            {%endfor%}</body>
             """,
-            sitedata=datums, datetime=datetime, site=site
+            sitedatums=datums, datetime=datetime
     ), 200
 @app.route("/Read/<site>/<float:ts>")
 async def redir(site, ts):
