@@ -10,8 +10,7 @@ app = Flask(__name__)
 @app.route("/Save", methods=("GET","POST"))
 async def save():
     if request.method == "GET":
-        return """
-        """
+        return render_template("save.html")
     conn = await r.connect("localhost", 28015)
     try:
         sites = request.form["site"].strip().split(" ")
@@ -117,8 +116,9 @@ async def route(id, ext="html"):
         return data
     if not data:
         return "Couldn't find that ID in the database.", 404
+    data['data'] = "<h2>stdout:</h2>" + data['data'].lstrip("\n")
     if data.get('error'):
-        data['data'] += f"\n\nstderr:\n{data['error']}"
+        data['data'] += f"\n\n<h2>stderr:</h2>{data['error']}"
     return data['data'].replace("\n","<br>"), 200
 
 @app.route("/")
@@ -132,22 +132,13 @@ async def api():
                     "q":"Domains to search for (space-separated)", "ids (optional; defaults to 0)": "Set to any non-zero value to search by primary key rather than by domain name. Used in Save DNS Now"
                 },
             }, {
-                "url": "/Read/<id>", "title": "Read record data (minus date) by primary key", "method": "GET", "p": "(URL)", "params": {
+                "nb": "You can access full record data (including the date!) as JSON by tacking on .json to the URL.", "url": "/Read/<id>", "title": "Read record data (minus date) by primary key", "method": "GET", "p": "(URL)", "params": {
                     "id": "The primary key of the document."
                 },
             }, {
-                "url": "/Read/<site>/<timestamp>", "title": "Read record data (minus date) by site and timestamp", "method": "GET", "p": "(URL)", "params": {
+                "nb": "You can access full record data (including the date!) as JSON by tacking on .json to the URL.", "url": "/Read/<site>/<timestamp>", "title": "Read record data (minus date) by site and timestamp", "method": "GET", "p": "(URL)", "params": {
                     "site": "The domain name",
-                    "timestamp": "The timestamp of the record"
-                },
-            }, {
-                "url": "/Read/<site>/<timestamp>.json", "title": "Read full record data as JSON by site and timestamp", "method": "GET", "p": "(URL)", "params": {
-                    "site": "The domain name",
-                    "timestamp": "The timestamp of the record"
-                },
-            }, {
-                "url": "/Read/<id>.json", "title": "Read full record data as JSON by primary key", "method":"GET", "p": "(URL", "params": {
-                    "id": "The primary key of the document"
+                    "timestamp": "The timestamp (UNIX epoch) of the record"
                 },
             }, {
                 "url": "/Save", "title": "Save DNS Now", "method": "POST", "p": "(request body)", "nb": "There is no JSON counterpart here; if you want to get the data, you will need to use HTML parsing.", "params": {
