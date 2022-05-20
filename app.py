@@ -23,7 +23,7 @@ async def save():
         if site is None: raise KeyError
     except KeyError:
         abort(400)
-    site = site.encode("idna").decode()
+    site = site.encode("idna").decode().lower()
     #print(f"dig {site} ANY @8.8.8.8")
     sudo = run(
             [
@@ -57,10 +57,18 @@ async def save():
     Successfully saved page info.
     <br>You can view it <a href="/Read/{site}/{ts}">here</a>.
     """.format(site=site, id=key, ts=ts), 201
-@app.route("/Clickclickclick", methods=["POST"])
+@app.route("/Clickclickclick", methods=["GET", "POST"])
 async def read():
-    if request.form.get('site') is None: abort(400)
-    site = request.form['site']
+    if request.method == "POST":
+        try:
+            site = request.form['site'].lower()
+        except KeyError:
+            abort(400)
+    else:
+        try:
+           site = request.args['q'].lower()
+        except KeyError:
+            abort(400)
     datums = []
     cursor = await r.db("dns").table("entries").get_all(
             site.encode("idna").decode(), index="site"
@@ -106,4 +114,4 @@ async def route(id):
     return data['data'].replace("\n","<br>"), 200
 
 @app.route("/")
-async def slash(): return """<form action="/Clickclickclick" method="post"><input name="site" id="site" placeholder="example.com"><label for="site">Domain name</label></form><i>Don't use https?://, or a path</i><br><br><h2>Save DNS Now</h2><a href="/Save">Here</a>"""
+async def slash(): return """<form action="/Clickclickclick" method="get"><input name="q" id="q" placeholder="example.com"><label for="q">Domain name</label></form><i>Don't use https?://, or a path</i><br><br><h2>Save DNS Now</h2><a href="/Save">Here</a>"""
