@@ -37,6 +37,7 @@ async def save():
             ], shell=True, capture_output=True
     )
     sudo2.tsTTR = time.time()
+    lis = [sudo2, sudo]
     l = {f"www.{site}": sudo2, site: sudo}
     for site, i in l.items():
         ts = i.tsTTR
@@ -53,22 +54,28 @@ async def save():
                     ) \
             .run(conn)
         key = keys["generated_keys"][0]
-    return """
-    Successfully saved page info.
-    <br>You can view it <a href="/Read/{site}/{ts}">here</a>.
-    """.format(site=site, id=key, ts=ts), 201
+    return render_template_string("""
+    {% if multiple is defined %}
+        Successfully saved page info for {{siteLinks|length}} sites.
+        <br>You can view them <a href="/Clickclickclick?q={{" ".join(siteIds)}}&ids=1">here</a>
+    {% else %}
+        Successfully saved page info.
+        <br>You can view it <a href="/Read/{{site}}/{{ts}}">here</a>.
+    {% endif %}
+    """, siteLinks=[], siteIds=[], site=site, id=key, ts=ts), 201
 @app.route("/Clickclickclick", methods=["GET", "POST"])
 async def read():
     if request.method == "POST":
         try:
-            site = request.form['site'].lower()
+            site = request.form['site'].lower().strip()
         except KeyError:
             abort(400)
     else:
         try:
-           site = request.args['q'].lower()
+           site = request.args['q'].lower().strip()
         except KeyError:
             abort(400)
+    sites = site.split(" ")
     datums = []
     cursor = await r.db("dns").table("entries").get_all(
             site.encode("idna").decode(), index="site"
@@ -77,17 +84,23 @@ async def read():
         datums.append(i)
     return render_template_string(
             """
-            <h1>{{sitedata|length}} snapshots for {{site}}</h1>
-            {% for i in sitedata %}
-            <a href="/Read/{{i['site']}}/{{i['ts']}}">{{datetime.fromtimestamp(i['ts'])}}</a>
-            <BR>
-            {% endfor %}
-            <h4>You've reached the end</h4>
+            <!DOCTYPE html><html><title>Search results for {{site}}</title><body>
+            <div id="{{site}}">
+                <h1>{{sitedata|length}} snapshots for {{site}}</h1>
+                {% for i in sitedata %}
+                    <a href="/Read/{{i['site']}}/{{i['ts']}}">{{datetime.fromtimestamp(i['ts'])}}</a>
+                <BR>
+                {% endfor %}
+                <h4>You've reached the end</h4>
+            </div></body>
             """,
             sitedata=datums, datetime=datetime, site=site
     ), 200
 @app.route("/Read/<site>/<float:ts>")
-async def old(site, ts):
+async def redir(site, ts):
+    return await old(site, ts)
+@app.route("/Read/<site>/<float:ts>.<ext>")
+async def old(site, ts, ext="html"):
     conn = await r.connect("localhost", 28015)
     cursor = await r.db("dns").table("entries").get_all(site, index="site").filter(
             {'site': site, "ts": ts}
@@ -102,11 +115,16 @@ async def old(site, ts):
     if len(a) == 0:
         return "<IMG SRC='https://web.archive.org/web/20211128194924im_/https://preview.redd.it/1htemhh633r21.jpg?width=960&crop=smart&auto=webp&s=259c2baf582e29e467d5d49f9f461a7bcd081d6d' ALT='WeirdChamp'>", 404
     link = f"/Read/{a[0]['id']}"
-    return await route(a[0]['id'])
+    return await route(a[0]['id'], ext)
 @app.route("/Read/<id>")
-async def route(id):
+async def redir2(id):
+    return await route(id)
+@app.route("/Read/<id>.<ext>")
+async def route(id, ext="html"):
     conn = await r.connect("localhost", 28015)
     data = await r.db("dns").table("entries").get(id).run(conn)
+    if ext == "json":
+        return data
     if not data:
         return "Couldn't find that ID in the database.", 404
     if data.get('error'):
