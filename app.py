@@ -11,8 +11,16 @@ tblib.pickling_support.install()
 
 import config
 
+try:
+    config.ANALYTICS_NO_IP
+except NameError:
+    config.ANALYTICS_NO_IP = []
+    print("Please add ANALYTICS_NO_IP to your config")
+
 app = Flask(__name__)
 async def add_analytics(req, e=None, saveIP=False, dryRun=False, DoAnyway=False):
+    if req.remote_addr in config.ANALYTICS_NO_IP:
+        return ""
     if "NoMoreSayingAnalyticsWords" in req.cookies:
         if not DoAnyway:
             return "<center>Analytics are <b>disabled.</b></center>"
@@ -22,7 +30,6 @@ async def add_analytics(req, e=None, saveIP=False, dryRun=False, DoAnyway=False)
         conn = await r.connect()
         if not saveIP:
             req.remote_addr = "SCRUBBED"
-        print(sys.getsizeof(req.__dict__))
         ins = {
             "headers": req.headers,
             "timestamp": time.time(),
@@ -38,7 +45,6 @@ async def add_analytics(req, e=None, saveIP=False, dryRun=False, DoAnyway=False)
         if not (req.routing_exception == e):
             ins['e'] = pickle.dumps(e)
         k = await r.db("dns").table("analytics").insert(ins).run(conn)
-        print(k)
         conn.close()
         ""
 
