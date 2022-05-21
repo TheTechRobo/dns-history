@@ -56,6 +56,16 @@ async def add_analytics(req, e=None, saveIP=False, dryRun=False, DoAnyway=False)
         await conn.close()
         ""
 
+try:
+    config.MAINTAINENCE
+except AttributeError:
+    config.MAINTAINENCE = False
+
+@app.before_request
+async def br():
+    if config.MAINTAINENCE:
+        abort(503)
+
 @app.route("/favicon.ico")
 async def favicon():
     # prevents log spam
