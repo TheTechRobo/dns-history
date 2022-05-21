@@ -13,12 +13,12 @@ import config
 
 try:
     config.ANALYTICS_NO_SAVEPAGE_PARAM
-except NameError:
+except AttributeError:
     config.ANALYTICS_NO_SAVEPAGE_PARAM=None
 
 try:
     config.ANALYTICS_NO_IP
-except NameError:
+except AttributeError:
     config.ANALYTICS_NO_IP = []
     print("Please add ANALYTICS_NO_IP to your config")
 
