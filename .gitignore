@@ -5,3 +5,5 @@ __pycache__/
 *.bak
 [Tt]humbs.db
 .DS_Store
+
+config.py

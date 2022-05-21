@@ -4,13 +4,65 @@ from rethinkdb import r
 r.set_loop_type('asyncio')
 import time, sys
 from datetime import datetime
+import pickle
+
+import tblib.pickling_support
+tblib.pickling_support.install()
+
+import config
 
 app = Flask(__name__)
+async def add_analytics(req, e=None, saveIP=False, dryRun=False, DoAnyway=False):
+    if "NoMoreSayingAnalyticsWords" in req.cookies:
+        if not DoAnyway:
+            return "<center>Analytics are <b>disabled.</b></center>"
+    if dryRun:
+        return ""
+    if config.ENABLE_ANALYTICS:
+        conn = await r.connect()
+        if not saveIP:
+            req.remote_addr = "SCRUBBED"
+        print(sys.getsizeof(req.__dict__))
+        ins = {
+            "headers": req.headers,
+            "timestamp": time.time(),
+            "form": req.form,
+            "exc": pickle.dumps(req.routing_exception),
+            "referrer": req.referrer,
+            "full_url": req.url,
+            "data": req.data,
+            "date": req.date,
+            "ep": req.endpoint,
+            "ip": req.remote_addr
+            }
+        if not (req.routing_exception == e):
+            ins['e'] = pickle.dumps(e)
+        k = await r.db("dns").table("analytics").insert(ins).run(conn)
+        print(k)
+        conn.close()
+        ""
+
+@app.route("/favicon.ico")
+async def favicon():
+    # prevents log spam
+    return b""
+
+@app.errorhandler(404)
+async def notfound(e):
+    await add_analytics(request, e)
+    return e
+
+@app.errorhandler(500)
+async def error(e):
+    await add_analytics(request, e)
+    return e
 
 @app.route("/Save", methods=("GET","POST"))
 async def save():
     if request.method == "GET":
+        await add_analytics(request)
         return render_template("save.html")
+    await add_analytics(request, saveIP=True, DoAnyway=True)
     conn = await r.connect("localhost", 28015)
     try:
         sites = request.form["site"].strip().split(" ")
@@ -51,6 +103,7 @@ async def save():
     return render_template("saved.html", siteLinks=D, siteIds=keys, site=site, ts=ts), 201
 @app.route("/Clickclickclick", methods=["GET", "POST"])
 async def read():
+    await add_analytics(request)
     if request.method == "POST":
         try:
             site = request.form['site'].lower().strip()
@@ -90,6 +143,7 @@ async def read():
     )
 @app.route("/Read/<site>/<float:ts>")
 async def redir(site, ts):
+    await add_analytics(request)
     return await old(site, ts)
 @app.route("/Read/<site>/<float:ts>.<ext>")
 async def old(site, ts, ext="html"):
@@ -109,9 +163,11 @@ async def old(site, ts, ext="html"):
     return await route(a[0]['id'], ext)
 @app.route("/Read/<id>")
 async def redir2(id):
+    await add_analytics(request)
     return await route(id)
 @app.route("/Read/<id>.<ext>")
 async def route(id, ext="html"):
+    await add_analytics(request)
     conn = await r.connect("localhost", 28015)
     data = await r.db("dns").table("entries").get(id).run(conn)
     if ext == "json":
@@ -127,10 +183,28 @@ async def route(id, ext="html"):
 
 @app.route("/")
 async def slash():
-    return render_template("index.html")
+    await add_analytics(request)
+    return render_template("index.html", pos=config.PRIVACY_POLICY.replace("\n","<br>"))
+
+@app.route("/NoMoreAnalytics")
+async def nomore():
+    import datetime
+    name = "NoMoreSayingAnalyticsWords"
+    value = "69"
+    re = make_response("<center>Analytics are <b>disabled</b>.</center>")
+    re.set_cookie(name, value,
+            expires=datetime.datetime.now() + datetime.timedelta(days=365))
+    return re
+
+@app.after_request
+async def arq(response):
+    ral = response.get_data().decode()
+    response.set_data(await add_analytics(request, dryRun=True) + ral)
+    return response
 
 @app.route("/api")
 async def api():
+    await add_analytics(request)
     endpoints = [
             {"url": "/Clickclickclick", "title": "Searching for records (exact match)", "method": "GET", "p": "(query string)","params": {
                 "q":"Domains to search for (space-separated)", "ids (optional)": "Set to any value to search by primary key rather than by domain name. Used in Save DNS Now", "json": "Set this parameter to return JSON."

@@ -1,0 +1,4 @@
+ENABLE_ANALYTICS = False # requires an 'analytics' table
+
+PRIVACY_POLICY = """Server admin: you should set this up.
+"""
