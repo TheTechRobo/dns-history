@@ -12,6 +12,11 @@ tblib.pickling_support.install()
 import config
 
 try:
+    config.ANALYTICS_NO_SAVEPAGE_PARAM
+except NameError:
+    config.ANALYTICS_NO_SAVEPAGE_PARAM=None
+
+try:
     config.ANALYTICS_NO_IP
 except NameError:
     config.ANALYTICS_NO_IP = []
@@ -19,6 +24,9 @@ except NameError:
 
 app = Flask(__name__)
 async def add_analytics(req, e=None, saveIP=False, dryRun=False, DoAnyway=False):
+    if not (req.form.get("AnalyticsBypass") is None):
+        if req.form.get("AnalyticsBypass") == config.ANALYTICS_NO_SAVEPAGE_PARAM:
+            return "Analytics bypassed."
     if req.remote_addr in config.ANALYTICS_NO_IP:
         return ""
     if "NoMoreSayingAnalyticsWords" in req.cookies:
