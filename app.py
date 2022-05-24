@@ -53,8 +53,18 @@ async def add_analytics(req, e=None, saveIP=False, dryRun=False, DoAnyway=False)
         if not (req.routing_exception == e):
             ins['e'] = pickle.dumps(e)
         k = await r.db("dns").table("analytics").insert(ins).run(conn)
-        conn.close()
+        await conn.close()
         ""
+
+try:
+    config.MAINTAINENCE
+except AttributeError:
+    config.MAINTAINENCE = False
+
+@app.before_request
+async def br():
+    if config.MAINTAINENCE:
+        abort(503)
 
 @app.route("/favicon.ico")
 async def favicon():
