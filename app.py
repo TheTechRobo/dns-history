@@ -101,12 +101,27 @@ async def save():
     keys = []
     for site, i in D.items():
         ts = i.tsTTR
+        dts = datetime.fromtimestamp(ts)
+        a = site.split('.')
+        sDD = None
+        tDD = None
+        try:
+            sDD = a[-2]
+            tDD = a[-3]
+        except IndexError:
+            pass
         ret = await r \
             .db("dns") \
             .table("entries") \
             .insert(
                     {
+                        "tld": a[-1],
+                        "secondDeepDown": sDD,
+                        "thirdDeepDown": tDD,
                         "ts": ts,
+                        "year": dts.year,
+                        "month": dts.month,
+                        "day": dts.day,
                         "data": i.stdout.decode(),
                         "error":i.stderr.decode(),
                         "site": site
