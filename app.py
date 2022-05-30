@@ -6,10 +6,17 @@ import time, sys
 from datetime import datetime
 import pickle
 
+import gzip
+
 import tblib.pickling_support
 tblib.pickling_support.install()
 
 import config
+
+try:
+    config.ENABLE_GZIP
+except AttributeError:
+    config.ENABLE_GZIP = False
 
 try:
     config.ANALYTICS_NO_SAVEPAGE_PARAM
@@ -111,30 +118,38 @@ async def save():
     keys = []
     for site, i in D.items():
         ts = i.tsTTR
-        dts = datetime.fromtimestamp(ts)
+        dts = datetime.fromtimestamp(ts) # used for finding year, day, month
         a = site.split('.')
         sDD = None
         tDD = None
+        tld = a[-1] # www.google.COM
         try:
-            sDD = a[-2]
-            tDD = a[-3]
+            sDD = a[-2] # www.GOOGLE.com
+            tDD = a[-3] # WWW.google.com
         except IndexError:
             pass
+        out = i.stdout.decode() # convert stdout from its original byte form to a unicode string
+        err = i.stderr.decode()
+        if config.ENABLE_GZIP:
+            out = gzip.compress(bytes(out, "utf-8")) # compress record with gzip
+            if err:
+                err = gzip.compress(bytes(err, "utf-8"))
         ret = await r \
             .db("dns") \
             .table("entries") \
             .insert(
                     {
-                        "tld": a[-1],
+                        "tld": tld,
                         "secondDeepDown": sDD,
                         "thirdDeepDown": tDD,
                         "ts": ts,
                         "year": dts.year,
                         "month": dts.month,
                         "day": dts.day,
-                        "data": i.stdout.decode(),
-                        "error":i.stderr.decode(),
-                        "site": site
+                        "data": out,
+                        "error":err, # most of the time stderr won't be populated
+                        "site": site,
+                        "gzip": config.ENABLE_GZIP
                         }
                     ) \
             .run(conn)
@@ -209,6 +224,10 @@ async def route(id, ext="html"):
     await add_analytics(request)
     conn = await r.connect("localhost", 28015)
     data = await r.db("dns").table("entries").get(id).run(conn)
+    if data.get("gzip"):
+        data["data"] = gzip.decompress(data["data"]).decode()
+        if data["error"]:
+            data["error"] = gzip.decompress(data["stderr"]).decode()
     if ext == "json":
         if not data:
             return data, 404

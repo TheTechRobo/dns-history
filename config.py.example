@@ -1,5 +1,7 @@
 ENABLE_ANALYTICS = False # requires an 'analytics' table
 
+ENABLE_GZIP = True
+
 ANALYTICS_NO_IP = ['127.0.0.1', '::1', 'localhost'] # IP addresses that analytics will ignore
 
 PRIVACY_POLICY = """Server admin: you should set this up.
