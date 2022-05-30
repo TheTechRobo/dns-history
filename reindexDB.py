@@ -1,10 +1,12 @@
 from rethinkdb import r
 
-import copy
+import copy, gzip
 
 conn = r.connect()
 
 from datetime import datetime
+
+input("This version of reindexDB will recompress everything with gzip. If you don't want that, comment out the code. Press ENTER to continue, Ctrl+C to cancel...")
 
 for i in r.db("dns").table("entries").run(conn):
     try:
@@ -23,6 +25,14 @@ for i in r.db("dns").table("entries").run(conn):
             nd['year'] = dt.year
             nd['month'] = dt.month
             nd['day'] = dt.day
+
+        # gzip
+        if not i.get("gzip"):
+            nd['data'] = gzip.compress(bytes(i['data'], "utf-8"))
+            if i['error']:
+                nd['error'] = gzip.compress(bytes(i['error'], "utf-8"))
+            nd['gzip'] = True
+        # end gzip
 
         r.db("dns").table("entries").get(i['id']).update(nd).run(conn, durability='soft')
     except (KeyError, IndexError):
