@@ -186,22 +186,28 @@ async def read():
             i = await r.db("dns").table("entries").get(site) \
                     .run(conn)
             if i:
+                if i.get("gzip"):
+                    if i.get("data"):
+                        i["data"] = gzip.decompress(i["data"]).decode("utf-8")
+                    if i.get("error"):
+                        i["error"] = gzip.decompress(i["error"]).decode("utf-8")
                 tmp.append(i)
         else:
             cursor = await r.db("dns").table("entries").get_all(
                     site.encode("idna").decode(), index="site"
                     ).run(conn)
             async for i in cursor:
-                if json:
-                    if i.get("gzip"):
-                        if i.get("data"):
-                            i["data"] = gzip.decompress(i["data"]).decode("utf-8")
-                        if i.get("err"):
-                            i["err"]  = gzip.decompress(i["err"]).decode("utf-8")
+                print(i)
+                if i.get("gzip"):
+                    if i.get("data"):
+                        i["data"] = gzip.decompress(i["data"]).decode("utf-8")
+                    if i.get("err"):
+                        i["err"]  = gzip.decompress(i["err"]).decode("utf-8")
                 tmp.append(i)
         await conn.close()
         datums[site] = tmp
     if json:
+        print(datums)
         return datums
     return render_template("searchresults.html",
             sitedatums=datums, datetime=datetime, sorted=sorted, checkSORTED=lambda s : s['ts']
@@ -237,7 +243,7 @@ async def route(id, ext="html"):
     data = await r.db("dns").table("entries").get(id).run(conn)
     if data.get("gzip"):
         data["data"] = gzip.decompress(data["data"]).decode()
-        if data["error"]:
+        if data.get("error"):
             data["error"] = gzip.decompress(data["stderr"]).decode()
     if ext == "json":
         if not data:
