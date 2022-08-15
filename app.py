@@ -1,3 +1,4 @@
+import os
 from flask import *
 from subprocess import run
 from rethinkdb import r
@@ -29,6 +30,10 @@ except AttributeError:
     config.ANALYTICS_NO_IP = []
     print("Please add ANALYTICS_NO_IP to your config")
 
+RETHINKDB_HOSTNAME = "localhost"
+if os.environ.get("YES_WE_ARE_IN_DOCKER"):
+    RETHINKDB_HOSTNAME = "172.17.0.1"
+
 app = Flask(__name__)
 async def add_analytics(req, e=None, saveIP=False, dryRun=False, DoAnyway=False):
     if not (req.form.get("AnalyticsBypass") is None):
@@ -42,7 +47,7 @@ async def add_analytics(req, e=None, saveIP=False, dryRun=False, DoAnyway=False)
     if dryRun:
         return ""
     if config.ENABLE_ANALYTICS:
-        conn = await r.connect()
+        conn = await r.connect(RETHINKDB_HOSTNAME)
         if not saveIP:
             req.remote_addr = "SCRUBBED"
         ins = {
@@ -94,7 +99,7 @@ async def save():
         await add_analytics(request)
         return render_template("save.html")
     await add_analytics(request, saveIP=True, DoAnyway=True)
-    conn = await r.connect("localhost", 28015)
+    conn = await r.connect(RETHINKDB_HOSTNAME, 28015)
     try:
         sites = request.form["site"].strip().split(" ")
     except KeyError:
@@ -176,7 +181,7 @@ async def read():
     datums = {}
     for site in sites:
         tmp = []
-        conn = await r.connect("localhost", 28015)
+        conn = await r.connect(RETHINKDB_HOSTNAME, 28015)
         if getByIds:
             i = await r.db("dns").table("entries").get(site) \
                     .run(conn)
@@ -187,6 +192,12 @@ async def read():
                     site.encode("idna").decode(), index="site"
                     ).run(conn)
             async for i in cursor:
+                if json:
+                    if i.get("gzip"):
+                        if i.get("data"):
+                            i["data"] = gzip.decompress(i["data"]).decode("utf-8")
+                        if i.get("err"):
+                            i["err"]  = gzip.decompress(i["err"]).decode("utf-8")
                 tmp.append(i)
         await conn.close()
         datums[site] = tmp
@@ -201,7 +212,7 @@ async def redir(site, ts):
     return await old(site, ts)
 @app.route("/Read/<site>/<float:ts>.<ext>")
 async def old(site, ts, ext="html"):
-    conn = await r.connect("localhost", 28015)
+    conn = await r.connect(RETHINKDB_HOSTNAME, 28015)
     cursor = await r.db("dns").table("entries").get_all(site, index="site").filter(
             {"ts": ts}
             ).run(conn)
@@ -222,7 +233,7 @@ async def redir2(id):
 @app.route("/Read/<id>.<ext>")
 async def route(id, ext="html"):
     await add_analytics(request)
-    conn = await r.connect("localhost", 28015)
+    conn = await r.connect(RETHINKDB_HOSTNAME, 28015)
     data = await r.db("dns").table("entries").get(id).run(conn)
     if data.get("gzip"):
         data["data"] = gzip.decompress(data["data"]).decode()

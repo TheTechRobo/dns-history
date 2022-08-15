@@ -10,6 +10,11 @@ input("This version of reindexDB will recompress everything with gzip. If you do
 
 for i in r.db("dns").table("entries").run(conn):
     try:
+        try:
+            i['site'] = i['site'].decode()
+            i['error'] = i['error'].decode()
+        except Exception:
+            pass
         a = i['site'].split('.')
         nd = {
             'tld': a[-1],
@@ -29,7 +34,7 @@ for i in r.db("dns").table("entries").run(conn):
         # gzip
         if not i.get("gzip"):
             nd['data'] = gzip.compress(bytes(i['data'], "utf-8"))
-            if i['error']:
+            if i.get('error'):
                 nd['error'] = gzip.compress(bytes(i['error'], "utf-8"))
             nd['gzip'] = True
         # end gzip
